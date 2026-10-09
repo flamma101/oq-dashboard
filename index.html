@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPORTAL - Offers Yield & Quality Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#10b981', 600: '#059669' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans antialiased p-6">
+
+  <!-- TOP BAR -->
+  <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b border-gray-800 mb-6 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+        📊 Offers Quality & Yield Analytics
+      </h1>
+      <p class="text-xs text-gray-400 mt-1">GPORTAL Performance & Action Intelligence</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="data-status" class="text-xs bg-gray-800 text-gray-400 px-3 py-1.5 rounded-md border border-gray-700">
+        Waiting for data...
+      </span>
+      <button onclick="requestDataRefresh()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-md transition shadow-sm flex items-center gap-1.5">
+        🔄 Refresh Data
+      </button>
+    </div>
+  </header>
+
+  <!-- KPI SUMMARY CARDS -->
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
+      <span class="text-xs font-medium text-gray-400 tracking-wider uppercase">Total Delivered</span>
+      <h2 id="kpi-delivered" class="text-2xl font-extrabold text-white mt-1">0</h2>
+      <p class="text-xs text-gray-500 mt-1">Aggregated send volume</p>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
+      <span class="text-xs font-medium text-gray-400 tracking-wider uppercase">Total Clicks</span>
+      <h2 id="kpi-clicks" class="text-2xl font-extrabold text-blue-400 mt-1">0</h2>
+      <p class="text-xs text-gray-500 mt-1">Overall click responses</p>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
+      <span class="text-xs font-medium text-gray-400 tracking-wider uppercase">Overall CTR</span>
+      <h2 id="kpi-ctr" class="text-2xl font-extrabold text-emerald-400 mt-1">0.00%</h2>
+      <p class="text-xs text-gray-500 mt-1">Click-Through Rate (Clicks/Delivered)</p>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
+      <span class="text-xs font-medium text-gray-400 tracking-wider uppercase">High Yield Offers (4-5★)</span>
+      <h2 id="kpi-high-yield" class="text-2xl font-extrabold text-amber-400 mt-1">0</h2>
+      <p class="text-xs text-gray-500 mt-1">Ready to scale volume</p>
+    </div>
+  </section>
+
+  <!-- VISUALIZATIONS SECTION -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Chart 1: Volume by Star Rating -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm flex flex-col">
+      <h3 class="text-sm font-semibold text-gray-300 mb-4">Volume Distribution by Offer Rating</h3>
+      <div class="relative flex-1 min-h-[220px]">
+        <canvas id="ratingChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 2: Mailer Volume & Efficiency -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm flex flex-col">
+      <h3 class="text-sm font-semibold text-gray-300 mb-4">Delivered Volume by Mailer</h3>
+      <div class="relative flex-1 min-h-[220px]">
+        <canvas id="mailerChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA TABLE & ACTION SIGNALS -->
+  <section class="bg-gray-900 border border-gray-800 rounded-xl shadow-sm overflow-hidden mb-6">
+    <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+      <h3 class="text-sm font-semibold text-gray-300">Offers Performance Matrix</h3>
+      <input type="text" id="table-search" placeholder="Filter offers or mailers..." onkeyup="filterTable()" class="bg-gray-800 text-xs text-gray-200 px-3 py-1.5 rounded border border-gray-700 focus:outline-none focus:border-emerald-500 w-64" />
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs text-gray-300">
+        <thead class="bg-gray-950 text-gray-400 font-medium uppercase border-b border-gray-800">
+          <tr>
+            <th class="p-3">Offer</th>
+            <th class="p-3">ISP</th>
+            <th class="p-3">Sponsor</th>
+            <th class="p-3">Mailer</th>
+            <th class="p-3 text-right">Delivered</th>
+            <th class="p-3 text-right">Clicks</th>
+            <th class="p-3 text-right">CTR (%)</th>
+            <th class="p-3 text-center">Rating</th>
+            <th class="p-3 text-center">Action Signal</th>
+          </tr>
+        </thead>
+        <tbody id="offers-table-body" class="divide-y divide-gray-800">
+          <tr>
+            <td colspan="9" class="p-6 text-center text-gray-500">No data received yet. Click "Refresh Data" or trigger sync from GPORTAL.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- DASHBOARD SCRIPT -->
+  <script>
+    let rawOffersData = [];
+    let ratingChartInstance = null;
+    let mailerChartInstance = null;
+
+    // 1. Listen for postMessage payload from Tampermonkey
+    window.addEventListener('message', (event) => {
+      if (event.data && (event.data.type === 'GPORTAL_API_DATA' || event.data.type === 'GPORTAL_DATA')) {
+        const payload = event.data.payload;
+        processData(payload);
+      }
+    });
+
+    function requestDataRefresh() {
+      document.getElementById('data-status').innerText = "Requesting refresh...";
+      window.parent.postMessage({ type: 'REQUEST_GPORTAL_REFRESH' }, '*');
+    }
+
+    // 2. Parse & normalize incoming data structure
+    function processData(payload) {
+      if (!payload) return;
+
+      // Normalize string array or JSON payload from TbGenerateur.js
+      let dataset = [];
+      if (Array.isArray(payload)) {
+        dataset = payload;
+      } else if (payload.offers && Array.isArray(payload.offers)) {
+        dataset = payload.offers;
+      }
+
+      rawOffersData = dataset;
+
+      // Update Timestamp Status
+      const now = new Date().toLocaleTimeString();
+      document.getElementById('data-status').innerText = `Synced at ${now}`;
+
+      // Calculate Metrics
+      renderKPIs(dataset);
+      renderCharts(dataset);
+      renderTable(dataset);
+    }
+
+    // 3. Render Top KPI Metrics
+    function renderKPIs(data) {
+      let totalDelivered = 0;
+      let totalClicks = 0;
+      let highYieldCount = 0;
+
+      data.forEach(item => {
+        const delivered = item.delivered || item.Delivered || 0;
+        const clicks = item.clicks || item.Clicks || 0;
+        const rating = item.rating || item.Rating || 0;
+
+        totalDelivered += delivered;
+        totalClicks += clicks;
+        if (rating >= 4) highYieldCount++;
+      });
+
+      const overallCTR = totalDelivered > 0 ? ((totalClicks / totalDelivered) * 100).toFixed(3) : "0.000";
+
+      document.getElementById('kpi-delivered').innerText = totalDelivered.toLocaleString();
+      document.getElementById('kpi-clicks').innerText = totalClicks.toLocaleString();
+      document.getElementById('kpi-ctr').innerText = `${overallCTR}%`;
+      document.getElementById('kpi-high-yield').innerText = highYieldCount;
+    }
+
+    // 4. Render Charts (Chart.js)
+    function renderCharts(data) {
+      const ratingCounts = { '5★': 0, '4★': 0, '3★': 0, '2★': 0, '1★': 0 };
+      const mailerVolumeMap = {};
+
+      data.forEach(item => {
+        const rating = item.rating || item.Rating || 0;
+        const mailer = item.mailer || item.Mailer || 'Unknown';
+        const delivered = item.delivered || item.Delivered || 0;
+
+        if (rating >= 5) ratingCounts['5★']++;
+        else if (rating === 4) ratingCounts['4★']++;
+        else if (rating === 3) ratingCounts['3★']++;
+        else if (rating === 2) ratingCounts['2★']++;
+        else ratingCounts['1★']++;
+
+        mailerVolumeMap[mailer] = (mailerVolumeMap[mailer] || 0) + delivered;
+      });
+
+      // Render Rating Pie Chart
+      const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+      if (ratingChartInstance) ratingChartInstance.destroy();
+      ratingChartInstance = new Chart(ratingCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(ratingCounts),
+          datasets: [{
+            data: Object.values(ratingCounts),
+            backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#ef4444']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af' } } } }
+      });
+
+      // Render Mailer Volume Bar Chart
+      const mailerCtx = document.getElementById('mailerChart').getContext('2d');
+      if (mailerChartInstance) mailerChartInstance.destroy();
+      mailerChartInstance = new Chart(mailerCtx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(mailerVolumeMap),
+          datasets: [{
+            label: 'Delivered Volume',
+            data: Object.values(mailerVolumeMap),
+            backgroundColor: '#10b981'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: '#9ca3af' } },
+            y: { ticks: { color: '#9ca3af' } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // 5. Render Interactive Data Table
+    function renderTable(data) {
+      const tbody = document.getElementById('offers-table-body');
+      tbody.innerHTML = '';
+
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-gray-500">No records found.</td></tr>`;
+        return;
+      }
+
+      data.forEach(item => {
+        const name = item.name || item.Offer || 'N/A';
+        const isp = item.isp || item.ISP || 'N/A';
+        const sponsor = item.sponsor || item.Sponsor || 'N/A';
+        const mailer = item.mailer || item.Mailer || 'N/A';
+        const delivered = item.delivered || item.Delivered || 0;
+        const clicks = item.clicks || item.Clicks || 0;
+        const rating = item.rating || item.Rating || 0;
+
+        const ctr = delivered > 0 ? ((clicks / delivered) * 100).toFixed(3) : "0.000";
+
+        // Action Recommendation Signal based on Rating
+        let actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400">HOLD</span>`;
+        if (rating >= 4) {
+          actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">🚀 SCALE UP</span>`;
+        } else if (rating === 3) {
+          actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-400 border border-amber-800">⚖️ MAINTAIN</span>`;
+        } else if (rating <= 2 && delivered > 1000) {
+          actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800">🛑 STOP / PAUSE</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-800/50 transition';
+        tr.innerHTML = `
+          <td class="p-3 font-medium text-white">${name}</td>
+          <td class="p-3">${isp}</td>
+          <td class="p-3">${sponsor}</td>
+          <td class="p-3">${mailer}</td>
+          <td class="p-3 text-right font-mono">${delivered.toLocaleString()}</td>
+          <td class="p-3 text-right font-mono text-blue-400">${clicks.toLocaleString()}</td>
+          <td class="p-3 text-right font-mono text-emerald-400">${ctr}%</td>
+          <td class="p-3 text-center text-amber-400 font-bold">${'★'.repeat(rating)}</td>
+          <td class="p-3 text-center">${actionBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 6. Search Filter
+    function filterTable() {
+      const query = document.getElementById('table-search').value.toLowerCase();
+      const filtered = rawOffersData.filter(item => {
+        const name = (item.name || item.Offer || '').toLowerCase();
+        const mailer = (item.mailer || item.Mailer || '').toLowerCase();
+        return name.includes(query) || mailer.includes(query);
+      });
+      renderTable(filtered);
+    }
+  </script>
+</body>
+</html>
