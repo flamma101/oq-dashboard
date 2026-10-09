@@ -96,20 +96,18 @@
 
     <div class="overflow-x-auto">
       <table class="w-full text-left text-xs text-gray-300">
-        <thead class="bg-gray-950 text-gray-400 font-medium uppercase border-b border-gray-800">
-          <thead class="bg-gray-950 text-gray-400 font-medium uppercase border-b border-gray-800 select-none">
-            <tr>
-              <th onclick="sortTable('name')" class="p-3 cursor-pointer hover:text-white transition">Offer <span id="sort-name"></span></th>
-              <th onclick="sortTable('isp')" class="p-3 cursor-pointer hover:text-white transition">ISP <span id="sort-isp"></span></th>
-              <th onclick="sortTable('sponsor')" class="p-3 cursor-pointer hover:text-white transition">Sponsor <span id="sort-sponsor"></span></th>
-              <th onclick="sortTable('mailer')" class="p-3 cursor-pointer hover:text-white transition">Mailer <span id="sort-mailer"></span></th>
-              <th onclick="sortTable('delivered')" class="p-3 text-right cursor-pointer hover:text-white transition">Delivered <span id="sort-delivered"></span></th>
-              <th onclick="sortTable('clicks')" class="p-3 text-right cursor-pointer hover:text-white transition">Clicks <span id="sort-clicks"></span></th>
-              <th onclick="sortTable('ctr')" class="p-3 text-right cursor-pointer hover:text-white transition">CTR (%) <span id="sort-ctr"></span></th>
-              <th onclick="sortTable('rating')" class="p-3 text-center cursor-pointer hover:text-white transition">Rating <span id="sort-rating"></span></th>
-              <th class="p-3 text-center">Action Signal</th>
-            </tr>
-          </thead>
+        <thead class="bg-gray-950 text-gray-400 font-medium uppercase border-b border-gray-800 select-none">
+          <tr>
+            <th onclick="sortTable('name')" class="p-3 cursor-pointer hover:text-white transition">Offer <span id="sort-name" class="text-emerald-400 font-bold"></span></th>
+            <th onclick="sortTable('isp')" class="p-3 cursor-pointer hover:text-white transition">ISP <span id="sort-isp" class="text-emerald-400 font-bold"></span></th>
+            <th onclick="sortTable('sponsor')" class="p-3 cursor-pointer hover:text-white transition">Sponsor <span id="sort-sponsor" class="text-emerald-400 font-bold"></span></th>
+            <th onclick="sortTable('mailer')" class="p-3 cursor-pointer hover:text-white transition">Mailer <span id="sort-mailer" class="text-emerald-400 font-bold"></span></th>
+            <th onclick="sortTable('delivered')" class="p-3 text-right cursor-pointer hover:text-white transition">Delivered <span id="sort-delivered" class="text-emerald-400 font-bold"></span></th>
+            <th onclick="sortTable('clicks')" class="p-3 text-right cursor-pointer hover:text-white transition">Clicks <span id="sort-clicks" class="text-emerald-400 font-bold"></span></th>
+            <th onclick="sortTable('ctr')" class="p-3 text-right cursor-pointer hover:text-white transition">CTR (%) <span id="sort-ctr" class="text-emerald-400 font-bold"></span></th>
+            <th onclick="sortTable('rating')" class="p-3 text-center cursor-pointer hover:text-white transition">Rating <span id="sort-rating" class="text-emerald-400 font-bold"></span></th>
+            <th class="p-3 text-center">Action Signal</th>
+          </tr>
         </thead>
         <tbody id="offers-table-body" class="divide-y divide-gray-800">
           <tr>
@@ -294,7 +292,6 @@
     let currentSortAscending = true;
     
     function sortTable(columnKey) {
-      // Toggle direction if clicking the same column, else default to descending for numbers / ascending for text
       if (currentSortColumn === columnKey) {
         currentSortAscending = !currentSortAscending;
       } else {
@@ -302,46 +299,43 @@
         currentSortAscending = !['delivered', 'clicks', 'ctr', 'rating'].includes(columnKey);
       }
     
-      // Clear all header sort indicators
+      // Clear previous indicators
       ['name', 'isp', 'sponsor', 'mailer', 'delivered', 'clicks', 'ctr', 'rating'].forEach(key => {
         const el = document.getElementById(`sort-${key}`);
         if (el) el.innerText = '';
       });
     
-      // Update active column indicator
+      // Set new indicator
       const activeHeaderEl = document.getElementById(`sort-${columnKey}`);
       if (activeHeaderEl) {
         activeHeaderEl.innerText = currentSortAscending ? ' ▲' : ' ▼';
       }
     
-      // Sort raw dataset
+      // Perform sort
       rawOffersData.sort((a, b) => {
         let valA, valB;
     
         if (columnKey === 'ctr') {
-          const delA = a.delivered || a.Delivered || 0;
-          const clkA = a.clicks || a.Clicks || 0;
-          const delB = b.delivered || b.Delivered || 0;
-          const clkB = b.clicks || b.Clicks || 0;
+          const delA = a.delivered || 0;
+          const clkA = a.clicks || 0;
+          const delB = b.delivered || 0;
+          const clkB = b.clicks || 0;
           valA = delA > 0 ? (clkA / delA) : 0;
           valB = delB > 0 ? (clkB / delB) : 0;
         } else {
-          valA = a[columnKey] ?? a[columnKey.charAt(0).toUpperCase() + columnKey.slice(1)] ?? '';
-          valB = b[columnKey] ?? b[columnKey.charAt(0).toUpperCase() + columnKey.slice(1)] ?? '';
+          valA = a[columnKey] ?? a[columnKey.toUpperCase()] ?? '';
+          valB = b[columnKey] ?? b[columnKey.toUpperCase()] ?? '';
         }
     
-        // Number comparison
         if (typeof valA === 'number' && typeof valB === 'number') {
           return currentSortAscending ? valA - valB : valB - valA;
         }
     
-        // String comparison
         return currentSortAscending 
-          ? String(valA).localeCompare(String(valB))
+          ? String(valA).localeCompare(String(valB)) 
           : String(valB).localeCompare(String(valA));
       });
     
-      // Re-render table with active filter query preserved
       filterTable();
     }
     
