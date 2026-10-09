@@ -97,17 +97,19 @@
     <div class="overflow-x-auto">
       <table class="w-full text-left text-xs text-gray-300">
         <thead class="bg-gray-950 text-gray-400 font-medium uppercase border-b border-gray-800">
-          <tr>
-            <th class="p-3">Offer</th>
-            <th class="p-3">ISP</th>
-            <th class="p-3">Sponsor</th>
-            <th class="p-3">Mailer</th>
-            <th class="p-3 text-right">Delivered</th>
-            <th class="p-3 text-right">Clicks</th>
-            <th class="p-3 text-right">CTR (%)</th>
-            <th class="p-3 text-center">Rating</th>
-            <th class="p-3 text-center">Action Signal</th>
-          </tr>
+          <thead class="bg-gray-950 text-gray-400 font-medium uppercase border-b border-gray-800 select-none">
+            <tr>
+              <th onclick="sortTable('name')" class="p-3 cursor-pointer hover:text-white transition">Offer <span id="sort-name"></span></th>
+              <th onclick="sortTable('isp')" class="p-3 cursor-pointer hover:text-white transition">ISP <span id="sort-isp"></span></th>
+              <th onclick="sortTable('sponsor')" class="p-3 cursor-pointer hover:text-white transition">Sponsor <span id="sort-sponsor"></span></th>
+              <th onclick="sortTable('mailer')" class="p-3 cursor-pointer hover:text-white transition">Mailer <span id="sort-mailer"></span></th>
+              <th onclick="sortTable('delivered')" class="p-3 text-right cursor-pointer hover:text-white transition">Delivered <span id="sort-delivered"></span></th>
+              <th onclick="sortTable('clicks')" class="p-3 text-right cursor-pointer hover:text-white transition">Clicks <span id="sort-clicks"></span></th>
+              <th onclick="sortTable('ctr')" class="p-3 text-right cursor-pointer hover:text-white transition">CTR (%) <span id="sort-ctr"></span></th>
+              <th onclick="sortTable('rating')" class="p-3 text-center cursor-pointer hover:text-white transition">Rating <span id="sort-rating"></span></th>
+              <th class="p-3 text-center">Action Signal</th>
+            </tr>
+          </thead>
         </thead>
         <tbody id="offers-table-body" class="divide-y divide-gray-800">
           <tr>
@@ -287,6 +289,62 @@
       });
     }
 
+    // Global Sorting State
+    let currentSortColumn = null;
+    let currentSortAscending = true;
+    
+    function sortTable(columnKey) {
+      // Toggle direction if clicking the same column, else default to descending for numbers / ascending for text
+      if (currentSortColumn === columnKey) {
+        currentSortAscending = !currentSortAscending;
+      } else {
+        currentSortColumn = columnKey;
+        currentSortAscending = !['delivered', 'clicks', 'ctr', 'rating'].includes(columnKey);
+      }
+    
+      // Clear all header sort indicators
+      ['name', 'isp', 'sponsor', 'mailer', 'delivered', 'clicks', 'ctr', 'rating'].forEach(key => {
+        const el = document.getElementById(`sort-${key}`);
+        if (el) el.innerText = '';
+      });
+    
+      // Update active column indicator
+      const activeHeaderEl = document.getElementById(`sort-${columnKey}`);
+      if (activeHeaderEl) {
+        activeHeaderEl.innerText = currentSortAscending ? ' ▲' : ' ▼';
+      }
+    
+      // Sort raw dataset
+      rawOffersData.sort((a, b) => {
+        let valA, valB;
+    
+        if (columnKey === 'ctr') {
+          const delA = a.delivered || a.Delivered || 0;
+          const clkA = a.clicks || a.Clicks || 0;
+          const delB = b.delivered || b.Delivered || 0;
+          const clkB = b.clicks || b.Clicks || 0;
+          valA = delA > 0 ? (clkA / delA) : 0;
+          valB = delB > 0 ? (clkB / delB) : 0;
+        } else {
+          valA = a[columnKey] ?? a[columnKey.charAt(0).toUpperCase() + columnKey.slice(1)] ?? '';
+          valB = b[columnKey] ?? b[columnKey.charAt(0).toUpperCase() + columnKey.slice(1)] ?? '';
+        }
+    
+        // Number comparison
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return currentSortAscending ? valA - valB : valB - valA;
+        }
+    
+        // String comparison
+        return currentSortAscending 
+          ? String(valA).localeCompare(String(valB))
+          : String(valB).localeCompare(String(valA));
+      });
+    
+      // Re-render table with active filter query preserved
+      filterTable();
+    }
+    
     // 6. Search Filter
     function filterTable() {
       const query = document.getElementById('table-search').value.toLowerCase();
