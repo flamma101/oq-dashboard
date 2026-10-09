@@ -250,16 +250,15 @@
       }
 
       data.forEach(item => {
-        const name = item.name || item.Offer || 'N/A';
-        const isp = item.isp || item.ISP || 'N/A';
-        const sponsor = item.sponsor || item.Sponsor || 'N/A';
-        const mailer = item.mailer || item.Mailer || 'N/A';
+        const name = item.name || item.Offer || item.offer_name || 'N/A';
+        const isp = item.isp || item.Isp || item.ISP || 'N/A';
+        const sponsor = item.sponsor || item.Sponsor || item.SPONSOR || 'N/A';
+        const mailer = item.mailer || item.Mailer || item.ownerId || 'N/A';
         const delivered = item.delivered || item.Delivered || 0;
         const clicks = item.clicks || item.Clicks || 0;
         const rating = item.rating || item.Rating || 0;
-
         const ctr = delivered > 0 ? ((clicks / delivered) * 100).toFixed(3) : "0.000";
-
+      
         // Action Recommendation Signal based on Rating
         let actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400">HOLD</span>`;
         if (rating >= 4) {
@@ -269,7 +268,7 @@
         } else if (rating <= 2 && delivered > 1000) {
           actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800">🛑 STOP / PAUSE</span>`;
         }
-
+      
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-gray-800/50 transition';
         tr.innerHTML = `
@@ -310,31 +309,39 @@
       if (activeHeaderEl) {
         activeHeaderEl.innerText = currentSortAscending ? ' ▲' : ' ▼';
       }
+
+      function getFieldValue(obj, key) {
+        if (key === 'isp') return obj.isp || obj.Isp || obj.ISP || '';
+        if (key === 'sponsor') return obj.sponsor || obj.Sponsor || obj.SPONSOR || '';
+        if (key === 'mailer') return obj.mailer || obj.Mailer || obj.ownerId || '';
+        if (key === 'name') return obj.name || obj.Offer || obj.offer_name || '';
+        return obj[key] ?? obj[key.toUpperCase()] ?? '';
+      }
     
       // Perform sort
       rawOffersData.sort((a, b) => {
-        let valA, valB;
+      let valA, valB;
     
-        if (columnKey === 'ctr') {
-          const delA = a.delivered || 0;
-          const clkA = a.clicks || 0;
-          const delB = b.delivered || 0;
-          const clkB = b.clicks || 0;
-          valA = delA > 0 ? (clkA / delA) : 0;
-          valB = delB > 0 ? (clkB / delB) : 0;
-        } else {
-          valA = a[columnKey] ?? a[columnKey.toUpperCase()] ?? '';
-          valB = b[columnKey] ?? b[columnKey.toUpperCase()] ?? '';
-        }
+      if (columnKey === 'ctr') {
+        const delA = a.delivered || 0;
+        const clkA = a.clicks || 0;
+        const delB = b.delivered || b.Delivered || 0;
+        const clkB = b.clicks || b.Clicks || 0;
+        valA = delA > 0 ? (clkA / delA) : 0;
+        valB = delB > 0 ? (clkB / delB) : 0;
+      } else {
+        valA = getFieldValue(a, columnKey);
+        valB = getFieldValue(b, columnKey);
+      }
     
-        if (typeof valA === 'number' && typeof valB === 'number') {
-          return currentSortAscending ? valA - valB : valB - valA;
-        }
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return currentSortAscending ? valA - valB : valB - valA;
+      }
     
-        return currentSortAscending 
-          ? String(valA).localeCompare(String(valB)) 
-          : String(valB).localeCompare(String(valA));
-      });
+      return currentSortAscending 
+        ? String(valA).localeCompare(String(valB)) 
+        : String(valB).localeCompare(String(valA));
+    });
     
       filterTable();
     }
