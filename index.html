@@ -140,22 +140,17 @@
     // 2. Parse & normalize incoming data structure
     function processData(payload) {
       if (!payload) return;
-
-      // Normalize string array or JSON payload from TbGenerateur.js
-      let dataset = [];
-      if (Array.isArray(payload)) {
-        dataset = payload;
-      } else if (payload.offers && Array.isArray(payload.offers)) {
-        dataset = payload.offers;
-      }
-
+    
+      // Handle both direct array or wrapped payload object
+      let dataset = Array.isArray(payload) ? payload : (payload.payload || payload.offers || []);
+    
       rawOffersData = dataset;
-
-      // Update Timestamp Status
+    
+      // Update Status Badge
       const now = new Date().toLocaleTimeString();
-      document.getElementById('data-status').innerText = `Synced at ${now}`;
-
-      // Calculate Metrics
+      document.getElementById('data-status').innerText = `Synced ${dataset.length} offers at ${now}`;
+    
+      // Render Dashboard
       renderKPIs(dataset);
       renderCharts(dataset);
       renderTable(dataset);
