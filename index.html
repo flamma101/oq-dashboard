@@ -4,9 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GPORTAL - Offers Yield & Quality Dashboard</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     tailwind.config = {
@@ -23,7 +21,6 @@
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen font-sans antialiased p-6">
 
-  <!-- TOP BAR -->
   <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b border-gray-800 mb-6 gap-4">
     <div>
       <h1 class="text-2xl font-bold text-white flex items-center gap-2">
@@ -41,7 +38,6 @@
     </div>
   </header>
 
-  <!-- KPI SUMMARY CARDS -->
   <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
       <span class="text-xs font-medium text-gray-400 tracking-wider uppercase">Total Delivered</span>
@@ -68,9 +64,7 @@
     </div>
   </section>
 
-  <!-- VISUALIZATIONS SECTION -->
   <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <!-- Chart 1: Volume by Star Rating -->
     <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm flex flex-col">
       <h3 class="text-sm font-semibold text-gray-300 mb-4">Volume Distribution by Offer Rating</h3>
       <div class="relative flex-1 min-h-[220px]">
@@ -78,7 +72,6 @@
       </div>
     </div>
 
-    <!-- Chart 2: Mailer Volume & Efficiency -->
     <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm flex flex-col">
       <h3 class="text-sm font-semibold text-gray-300 mb-4">Delivered Volume by Mailer</h3>
       <div class="relative flex-1 min-h-[220px]">
@@ -87,11 +80,10 @@
     </div>
   </section>
 
-  <!-- DATA TABLE & ACTION SIGNALS -->
   <section class="bg-gray-900 border border-gray-800 rounded-xl shadow-sm overflow-hidden mb-6">
     <div class="p-4 border-b border-gray-800 flex justify-between items-center">
       <h3 class="text-sm font-semibold text-gray-300">Offers Performance Matrix</h3>
-      <input type="text" id="table-search" placeholder="Filter offers or mailers..." onkeyup="filterTable()" class="bg-gray-800 text-xs text-gray-200 px-3 py-1.5 rounded border border-gray-700 focus:outline-none focus:border-emerald-500 w-64" />
+      <input type="text" id="table-search" placeholder="Filter offers or mailers..." onkeyup="filterTable()" class="bg-gray-800 text-xs text-gray-200 px-3 py-1.5 rounded border border-gray-700 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
     </div>
 
     <div class="overflow-x-auto">
@@ -118,13 +110,142 @@
     </div>
   </section>
 
-  <!-- DASHBOARD SCRIPT -->
   <script>
     let rawOffersData = [];
     let ratingChartInstance = null;
     let mailerChartInstance = null;
 
-    // 1. Listen for postMessage payload from Tampermonkey
+    function normalizeString(value) {
+      if (value === null || value === undefined) return '';
+      return String(value).replace(/<[^>]*>/g, '').trim();
+    }
+
+    function toNumber(value, fallback = 0) {
+      if (value === null || value === undefined || value === '') return fallback;
+      const num = Number(String(value).replace(/[^0-9.-]/g, ''));
+      return Number.isFinite(num) ? num : fallback;
+    }
+
+    function getColumnIndex(cols, candidates = []) {
+      if (!cols || typeof cols !== 'object') return null;
+      const normalized = {};
+      Object.keys(cols).forEach(key => {
+        normalized[String(key).trim().toLowerCase()] = cols[key];
+      });
+
+      for (const candidate of candidates) {
+        const key = String(candidate).trim().toLowerCase();
+        if (normalized[key] !== undefined) return normalized[key];
+      }
+
+      for (const key of Object.keys(normalized)) {
+        for (const candidate of candidates) {
+          if (key.includes(String(candidate).trim().toLowerCase())) {
+            return normalized[key];
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function getValueFromRow(row, keys = []) {
+      if (!row || typeof row !== 'object') return '';
+      for (const key of keys) {
+        const direct = row[key];
+        if (direct !== undefined && direct !== null && direct !== '') return direct;
+      }
+
+      const lowerCaseKeys = {};
+      Object.keys(row).forEach(key => {
+        lowerCaseKeys[String(key).toLowerCase()] = row[key];
+      });
+
+      for (const key of keys) {
+        const lowerKey = String(key).toLowerCase();
+        if (lowerCaseKeys[lowerKey] !== undefined) return lowerCaseKeys[lowerKey];
+      }
+
+      return '';
+    }
+
+    function normalizeRow(rawRow, cols = null) {
+      if (!rawRow) return null;
+
+      if (Array.isArray(rawRow)) {
+        const row = rawRow;
+        const nameIdx = getColumnIndex(cols, ['offer_name', 'offer', 'name', 'offer name']);
+        const ispIdx = getColumnIndex(cols, ['isp', 'isp_name', 'network']);
+        const sponsorIdx = getColumnIndex(cols, ['sponsor', 'advertiser', 'brand']);
+        const mailerIdx = getColumnIndex(cols, ['mailer', 'ownerid', 'owner_id', 'owner']);
+        const deliveredIdx = getColumnIndex(cols, ['delivered', 'delivery', 'volume']);
+        const clicksIdx = getColumnIndex(cols, ['clicks', 'click']);
+        const ratingIdx = getColumnIndex(cols, ['rating', 'offer rating']);
+
+        const name = normalizeString(row[nameIdx ?? 0]);
+        const isp = normalizeString(row[ispIdx ?? 0]);
+        const sponsor = normalizeString(row[sponsorIdx ?? 0]);
+        const mailer = normalizeString(row[mailerIdx ?? 0]);
+        const delivered = toNumber(row[deliveredIdx ?? 0], 0);
+        const clicks = toNumber(row[clicksIdx ?? 0], 0);
+
+        const ratingRaw = row[ratingIdx ?? 0];
+        const ratingMatch = String(ratingRaw || '').match(/<span[^>]*display:none[^>]*>(\d+)<\/span>/);
+        const rating = ratingMatch ? parseInt(ratingMatch[1], 10) : toNumber(ratingRaw, 0);
+
+        return {
+          name: name || 'N/A',
+          isp: isp || 'N/A',
+          sponsor: sponsor || 'N/A',
+          mailer: mailer || 'N/A',
+          delivered,
+          clicks,
+          rating
+        };
+      }
+
+      const ratingRaw = getValueFromRow(rawRow, ['rating', 'Rating', 'offer_rating', 'offerRating']);
+      const ratingMatch = String(ratingRaw || '').match(/<span[^>]*display:none[^>]*>(\d+)<\/span>/);
+
+      return {
+        name: normalizeString(getValueFromRow(rawRow, ['name', 'Name', 'offer_name', 'Offer', 'offer', 'OfferName']) || 'N/A') || 'N/A',
+        isp: normalizeString(getValueFromRow(rawRow, ['isp', 'Isp', 'ISP', 'network']) || 'N/A') || 'N/A',
+        sponsor: normalizeString(getValueFromRow(rawRow, ['sponsor', 'Sponsor', 'SPONSOR', 'advertiser']) || 'N/A') || 'N/A',
+        mailer: normalizeString(getValueFromRow(rawRow, ['mailer', 'Mailer', 'mailing', 'ownerId', 'owner_id']) || 'N/A') || 'N/A',
+        delivered: toNumber(getValueFromRow(rawRow, ['delivered', 'Delivered', 'volume']), 0),
+        clicks: toNumber(getValueFromRow(rawRow, ['clicks', 'Clicks', 'click']), 0),
+        rating: ratingMatch ? parseInt(ratingMatch[1], 10) : toNumber(ratingRaw, 0)
+      };
+    }
+
+    function parseDataset(payload) {
+      if (!payload) return [];
+
+      if (Array.isArray(payload)) {
+        return payload.map(row => normalizeRow(row));
+      }
+
+      if (payload.payload && Array.isArray(payload.payload)) {
+        return payload.payload.map(row => normalizeRow(row));
+      }
+
+      if (payload.offers && Array.isArray(payload.offers)) {
+        return payload.offers.map(row => normalizeRow(row));
+      }
+
+      if (payload.rows && Array.isArray(payload.rows)) {
+        const cols = payload.cols || {};
+        return payload.rows.map(row => normalizeRow(row, cols));
+      }
+
+      if (payload.data && payload.data.rows && Array.isArray(payload.data.rows)) {
+        const cols = payload.data.cols || {};
+        return payload.data.rows.map(row => normalizeRow(row, cols));
+      }
+
+      return [];
+    }
+
     window.addEventListener('message', (event) => {
       if (event.data && (event.data.type === 'GPORTAL_API_DATA' || event.data.type === 'GPORTAL_DATA')) {
         const payload = event.data.payload;
@@ -133,46 +254,40 @@
     });
 
     function requestDataRefresh() {
-      document.getElementById('data-status').innerText = "Requesting refresh...";
+      document.getElementById('data-status').innerText = 'Requesting refresh...';
       window.parent.postMessage({ type: 'REQUEST_GPORTAL_REFRESH' }, '*');
     }
 
-    // 2. Parse & normalize incoming data structure
     function processData(payload) {
       if (!payload) return;
-    
-      // Handle both direct array or wrapped payload object
-      let dataset = Array.isArray(payload) ? payload : (payload.payload || payload.offers || []);
-    
+
+      const dataset = parseDataset(payload);
       rawOffersData = dataset;
-    
-      // Update Status Badge
+
       const now = new Date().toLocaleTimeString();
       document.getElementById('data-status').innerText = `Synced ${dataset.length} offers at ${now}`;
-    
-      // Render Dashboard
+
       renderKPIs(dataset);
       renderCharts(dataset);
       renderTable(dataset);
     }
 
-    // 3. Render Top KPI Metrics
     function renderKPIs(data) {
       let totalDelivered = 0;
       let totalClicks = 0;
       let highYieldCount = 0;
 
       data.forEach(item => {
-        const delivered = item.delivered || item.Delivered || 0;
-        const clicks = item.clicks || item.Clicks || 0;
-        const rating = item.rating || item.Rating || 0;
+        const delivered = Number(item.delivered || 0);
+        const clicks = Number(item.clicks || 0);
+        const rating = Number(item.rating || 0);
 
         totalDelivered += delivered;
         totalClicks += clicks;
         if (rating >= 4) highYieldCount++;
       });
 
-      const overallCTR = totalDelivered > 0 ? ((totalClicks / totalDelivered) * 100).toFixed(3) : "0.000";
+      const overallCTR = totalDelivered > 0 ? ((totalClicks / totalDelivered) * 100).toFixed(3) : '0.000';
 
       document.getElementById('kpi-delivered').innerText = totalDelivered.toLocaleString();
       document.getElementById('kpi-clicks').innerText = totalClicks.toLocaleString();
@@ -180,15 +295,14 @@
       document.getElementById('kpi-high-yield').innerText = highYieldCount;
     }
 
-    // 4. Render Charts (Chart.js)
     function renderCharts(data) {
       const ratingCounts = { '5★': 0, '4★': 0, '3★': 0, '2★': 0, '1★': 0 };
       const mailerVolumeMap = {};
 
       data.forEach(item => {
-        const rating = item.rating || item.Rating || 0;
-        const mailer = item.mailer || item.Mailer || 'Unknown';
-        const delivered = item.delivered || item.Delivered || 0;
+        const rating = Number(item.rating || 0);
+        const mailer = normalizeString(item.mailer || 'Unknown') || 'Unknown';
+        const delivered = Number(item.delivered || 0);
 
         if (rating >= 5) ratingCounts['5★']++;
         else if (rating === 4) ratingCounts['4★']++;
@@ -199,7 +313,6 @@
         mailerVolumeMap[mailer] = (mailerVolumeMap[mailer] || 0) + delivered;
       });
 
-      // Render Rating Pie Chart
       const ratingCtx = document.getElementById('ratingChart').getContext('2d');
       if (ratingChartInstance) ratingChartInstance.destroy();
       ratingChartInstance = new Chart(ratingCtx, {
@@ -211,10 +324,13 @@
             backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#ef4444']
           }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af' } } } }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af' } } }
+        }
       });
 
-      // Render Mailer Volume Bar Chart
       const mailerCtx = document.getElementById('mailerChart').getContext('2d');
       if (mailerChartInstance) mailerChartInstance.destroy();
       mailerChartInstance = new Chart(mailerCtx, {
@@ -239,57 +355,54 @@
       });
     }
 
-    // 5. Render Interactive Data Table
     function renderTable(data) {
       const tbody = document.getElementById('offers-table-body');
       tbody.innerHTML = '';
 
       if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-gray-500">No records found.</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-gray-500">No records found.</td></tr>';
         return;
       }
 
       data.forEach(item => {
-        const name = item.name || item.Offer || item.offer_name || 'N/A';
-        const isp = item.isp || item.Isp || item.ISP || 'N/A';
-        const sponsor = item.sponsor || item.Sponsor || item.SPONSOR || 'N/A';
-        const mailer = item.mailer || item.Mailer || item.ownerId || 'N/A';
-        const delivered = item.delivered || item.Delivered || 0;
-        const clicks = item.clicks || item.Clicks || 0;
-        const rating = item.rating || item.Rating || 0;
-        const ctr = delivered > 0 ? ((clicks / delivered) * 100).toFixed(3) : "0.000";
-      
-        // Action Recommendation Signal based on Rating
-        let actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400">HOLD</span>`;
+        const name = normalizeString(item.name || 'N/A') || 'N/A';
+        const isp = normalizeString(item.isp || 'N/A') || 'N/A';
+        const sponsor = normalizeString(item.sponsor || 'N/A') || 'N/A';
+        const mailer = normalizeString(item.mailer || 'N/A') || 'N/A';
+        const delivered = Number(item.delivered || 0);
+        const clicks = Number(item.clicks || 0);
+        const rating = Number(item.rating || 0);
+        const ctr = delivered > 0 ? ((clicks / delivered) * 100).toFixed(3) : '0.000';
+
+        let actionBadge = '<span class=\"px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400\">HOLD</span>';
         if (rating >= 4) {
-          actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">🚀 SCALE UP</span>`;
+          actionBadge = '<span class=\"px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800\">🚀 SCALE UP</span>';
         } else if (rating === 3) {
-          actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-400 border border-amber-800">⚖️ MAINTAIN</span>`;
+          actionBadge = '<span class=\"px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-400 border border-amber-800\">⚖️ MAINTAIN</span>';
         } else if (rating <= 2 && delivered > 1000) {
-          actionBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800">🛑 STOP / PAUSE</span>`;
+          actionBadge = '<span class=\"px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800\">🛑 STOP / PAUSE</span>';
         }
-      
+
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-gray-800/50 transition';
         tr.innerHTML = `
-          <td class="p-3 font-medium text-white">${name}</td>
-          <td class="p-3">${isp}</td>
-          <td class="p-3">${sponsor}</td>
-          <td class="p-3">${mailer}</td>
-          <td class="p-3 text-right font-mono">${delivered.toLocaleString()}</td>
-          <td class="p-3 text-right font-mono text-blue-400">${clicks.toLocaleString()}</td>
-          <td class="p-3 text-right font-mono text-emerald-400">${ctr}%</td>
-          <td class="p-3 text-center text-amber-400 font-bold">${'★'.repeat(rating)}</td>
-          <td class="p-3 text-center">${actionBadge}</td>
+          <td class=\"p-3 font-medium text-white\">${name}</td>
+          <td class=\"p-3\">${isp}</td>
+          <td class=\"p-3\">${sponsor}</td>
+          <td class=\"p-3\">${mailer}</td>
+          <td class=\"p-3 text-right font-mono\">${delivered.toLocaleString()}</td>
+          <td class=\"p-3 text-right font-mono text-blue-400\">${clicks.toLocaleString()}</td>
+          <td class=\"p-3 text-right font-mono text-emerald-400\">${ctr}%</td>
+          <td class=\"p-3 text-center text-amber-400 font-bold\">${'★'.repeat(Math.max(0, Math.min(5, rating)))}</td>
+          <td class=\"p-3 text-center\">${actionBadge}</td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    // Global Sorting State
     let currentSortColumn = null;
     let currentSortAscending = true;
-    
+
     function sortTable(columnKey) {
       if (currentSortColumn === columnKey) {
         currentSortAscending = !currentSortAscending;
@@ -297,62 +410,66 @@
         currentSortColumn = columnKey;
         currentSortAscending = !['delivered', 'clicks', 'ctr', 'rating'].includes(columnKey);
       }
-    
-      // Clear previous indicators
+
       ['name', 'isp', 'sponsor', 'mailer', 'delivered', 'clicks', 'ctr', 'rating'].forEach(key => {
         const el = document.getElementById(`sort-${key}`);
         if (el) el.innerText = '';
       });
-    
-      // Set new indicator
+
       const activeHeaderEl = document.getElementById(`sort-${columnKey}`);
       if (activeHeaderEl) {
         activeHeaderEl.innerText = currentSortAscending ? ' ▲' : ' ▼';
       }
 
       function getFieldValue(obj, key) {
-        if (key === 'isp') return obj.isp || obj.Isp || obj.ISP || '';
-        if (key === 'sponsor') return obj.sponsor || obj.Sponsor || obj.SPONSOR || '';
-        if (key === 'mailer') return obj.mailer || obj.Mailer || obj.ownerId || '';
-        if (key === 'name') return obj.name || obj.Offer || obj.offer_name || '';
-        return obj[key] ?? obj[key.toUpperCase()] ?? '';
+        if (key === 'isp') return normalizeString(obj.isp || obj.Isp || obj.ISP || '');
+        if (key === 'sponsor') return normalizeString(obj.sponsor || obj.Sponsor || obj.SPONSOR || '');
+        if (key === 'mailer') return normalizeString(obj.mailer || obj.Mailer || obj.ownerId || '');
+        if (key === 'name') return normalizeString(obj.name || obj.Offer || obj.offer_name || '');
+        if (key === 'ctr') {
+          const delivered = Number(obj.delivered || obj.Delivered || 0);
+          const clicks = Number(obj.clicks || obj.Clicks || 0);
+          return delivered > 0 ? clicks / delivered : 0;
+        }
+        const val = obj[key] ?? obj[key.toUpperCase()] ?? obj[key.charAt(0).toUpperCase() + key.slice(1)] ?? 0;
+        return val;
       }
-    
-      // Perform sort
+
       rawOffersData.sort((a, b) => {
-      let valA, valB;
-    
-      if (columnKey === 'ctr') {
-        const delA = a.delivered || 0;
-        const clkA = a.clicks || 0;
-        const delB = b.delivered || b.Delivered || 0;
-        const clkB = b.clicks || b.Clicks || 0;
-        valA = delA > 0 ? (clkA / delA) : 0;
-        valB = delB > 0 ? (clkB / delB) : 0;
-      } else {
-        valA = getFieldValue(a, columnKey);
-        valB = getFieldValue(b, columnKey);
-      }
-    
-      if (typeof valA === 'number' && typeof valB === 'number') {
-        return currentSortAscending ? valA - valB : valB - valA;
-      }
-    
-      return currentSortAscending 
-        ? String(valA).localeCompare(String(valB)) 
-        : String(valB).localeCompare(String(valA));
-    });
-    
+        let valA, valB;
+
+        if (columnKey === 'ctr') {
+          const delA = Number(a.delivered || a.Delivered || 0);
+          const clkA = Number(a.clicks || a.Clicks || 0);
+          const delB = Number(b.delivered || b.Delivered || 0);
+          const clkB = Number(b.clicks || b.Clicks || 0);
+          valA = delA > 0 ? (clkA / delA) : 0;
+          valB = delB > 0 ? (clkB / delB) : 0;
+        } else {
+          valA = getFieldValue(a, columnKey);
+          valB = getFieldValue(b, columnKey);
+        }
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return currentSortAscending ? valA - valB : valB - valA;
+        }
+
+        return currentSortAscending
+          ? String(valA).localeCompare(String(valB))
+          : String(valB).localeCompare(String(valA));
+      });
+
       filterTable();
     }
-    
-    // 6. Search Filter
+
     function filterTable() {
       const query = document.getElementById('table-search').value.toLowerCase();
       const filtered = rawOffersData.filter(item => {
-        const name = (item.name || item.Offer || '').toLowerCase();
-        const mailer = (item.mailer || item.Mailer || '').toLowerCase();
-        return name.includes(query) || mailer.includes(query);
+        const name = normalizeString(item.name || '').toLowerCase();
+        const mailer = normalizeString(item.mailer || '').toLowerCase();
+        const isp = normalizeString(item.isp || '').toLowerCase();
+        const sponsor = normalizeString(item.sponsor || '').toLowerCase();
+        return name.includes(query) || mailer.includes(query) || isp.includes(query) || sponsor.includes(query);
       });
       renderTable(filtered);
     }
